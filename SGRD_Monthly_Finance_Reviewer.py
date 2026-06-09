@@ -8,51 +8,35 @@ st.title("🛣️ Road District Monthly Audit Tool")
 uploaded_file = st.file_uploader("Upload Treasurer's Spreadsheet (.xlsx)", type="xlsx")
 
 if uploaded_file:
+    # Load all sheets into a dictionary
     xls = pd.ExcelFile(uploaded_file)
-    sheets = xls.sheet_names
-    st.sidebar.write("Found tabs:", sheets)
-
-    # --- 1. DYNAMIC REVENUE ANALYSIS ---
-    # Looks for 'REVENUE' tab (matches your screenshot)
-    rev_tab = next((s for s in sheets if 'REVENUE' in s.upper()), None)
-    if rev_tab:
+    sheet_map = {name.upper(): name for name in xls.sheet_names}
+    
+    # --- 1. REVENUE ANALYSIS ---
+    if 'REVENUE' in sheet_map:
         st.subheader("📊 Revenue Analysis")
-        df_rev = pd.read_excel(xls, sheet_name=rev_tab)
-        # Assuming the structure from your previous image: Months are rows, Years are columns
-        # Let's find 'MAY' in the first column
+        df_rev = pd.read_excel(xls, sheet_name=sheet_map['REVENUE'])
         try:
             df_rev.columns = [str(c).strip() for c in df_rev.columns]
             may_data = df_rev[df_rev.iloc[:, 0].str.upper() == 'MAY'].iloc[0]
-            
-            curr_may = may_data['2026']
-            prev_may = may_data['2025']
+            curr_may, prev_may = may_data['2026'], may_data['2025']
             
             col1, col2 = st.columns(2)
             col1.metric("May 2026 Revenue", f"${curr_may:,.2f}", f"{((curr_may/prev_may)-1)*100:.1f}% vs last year", delta_color="inverse")
-            
             if curr_may < (prev_may * 0.5):
-                st.error(f"⚠️ Revenue Warning: May intake is significantly lower than May 2025 ($ {prev_may:,.2f}).")
-        except:
-            st.info("Note: Could not calculate Revenue delta. Ensure columns are labeled 2025, 2026, etc.")
+                st.error("⚠️ Revenue Warning: May intake is significantly lower than May 2025.")
+        except Exception:
+            st.info("Revenue tab found, but could not parse 'MAY' or year columns.")
 
-    # --- 2. MEANINGFUL BURN RATE ---
-    # Looks for 'BUDGET' tab (matches your '2026 budget')
-    bud_tab = next((s for s in sheets if 'BUDGET' in s.upper()), None)
-    if bud_tab:
+    # --- 2. FISCAL YEAR BUDGET BURN RATE ---
+    if 'BUDGET' in sheet_map:
         st.subheader("🔥 Fiscal Year Burn Rate")
-        df_bud = pd.read_excel(xls, sheet_name=bud_tab)
-        
-        # LOGIC: We look for a row that says 'TOTAL' and columns for 'Budget' and 'Actual'
-        # Adjust these strings if the Treasurer uses different headers
+        df_bud = pd.read_excel(xls, sheet_name=sheet_map['BUDGET'])
         try:
-            # Simple logic: sum the columns that look like currency
-            total_budget = df_bud.iloc[:, 1].sum() # Assumes col 2 is Budget
-            total_spent = df_bud.iloc[:, 2].sum()  # Assumes col 3 is Actual
-            
+            total_budget = df_bud.iloc[:, 1].sum()
+            total_spent = df_bud.iloc[:, 2].sum()
             burn_pct = (total_spent / total_budget)
             
-            # The "Meaningful" Part: Compare spending to time elapsed
-            # We are in May (Month 11 of a July-June Fiscal Year)
             months_elapsed = 11 
             time_elapsed_pct = months_elapsed / 12
             
@@ -60,23 +44,28 @@ if uploaded_file:
             st.progress(min(burn_pct, 1.0))
             
             if burn_pct > time_elapsed_pct:
-                st.warning(f"⚠️ **Over-Burn:** You have spent {burn_pct:.1%}, but the year is only {time_elapsed_pct:.1%} complete.")
+                st.warning(f"⚠️ **Over-Burn:** Spent {burn_pct:.1%}, but year is {time_elapsed_pct:.1%} complete.")
             else:
-                st.success(f"✅ **On Track:** You have spent {burn_pct:.1%} with {time_elapsed_pct:.1%} of the year elapsed.")
-        except:
-            st.info("To see Burn Rate math, ensure the Budget tab has 'Budget' and 'Actual' columns.")
+                st.success(f"✅ **On Track:** Spent {burn_pct:.1%} with {time_elapsed_pct:.1%} of year elapsed.")
+        except Exception:
+            st.info("Budget tab found, but check that columns 2 and 3 contain numeric 'Budget' and 'Actual' data.")
 
-    # --- 3. CASH RECONCILIATION ---
-    cash_tab = next((s for s in sheets if 'CASH' in s.upper()), None)
-    if cash_tab:
+    # --- 3. CASH POSITION ---
+    if 'CASH' in sheet_map:
         st.subheader("💰 Cash Position")
-        df_cash = pd.read_excel(xls, sheet_name=cash_tab)
-        # Pull the last value in the column that looks like a balance
+        df_cash = pd.read_excel(xls, sheet_name=sheet_map['CASH'])
         try:
-            current_cash = df_cash.iloc[:, -1].iloc[-1] 
+            current_cash = df_cash.iloc[:, -1].iloc[-1]
             st.metric("Ending Cash Balance", f"${current_cash:,.2f}")
-        except:
-            st.write("Upload the spreadsheet to see reconciled cash position.")
+        except Exception:
+            st.info("Cash tab found, but could not extract the final balance value.")
+
+    # Validate missing sheets
+    missing = [tab for tab in ['REVENUE', 'BUDGET', 'CASH'] if tab not in sheet_map]
+    if missing:
+        st.sidebar.error(f"Missing required tabs: {', '.join(missing)}")
+    else:
+        st.sidebar.success("All required tabs (REVENUE, BUDGET, CASH) detected.")
 
 else:
     st.info("Awaiting Treasurer's file...")
