@@ -75,13 +75,17 @@ if uploaded_file:
             df_trend = df_rev.set_index(df_rev.columns[0])[years]
             st.line_chart(df_trend)
         
-        # Variance Analysis
-        # Note: adjust column indexes (0, 1, 2) if your actual spreadsheet headers differ
-        df_bud.columns = ['Category', 'Budget', 'Actual']
-        df_bud['Variance (%)'] = ((df_bud['Actual'] - df_bud['Budget']) / df_bud['Budget']) * 100
+        # --- Updated Variance Analysis ---
+        # Instead of renaming all columns, we explicitly select the ones we need by index
+        # Assuming: Col 0 = Category, Col 1 = Budget, Col 2 = Actual
+        df_budget_data = df_bud.iloc[:, [0, 1, 2]].copy()
+        df_budget_data.columns = ['Category', 'Budget', 'Actual']
+        
+        # Calculate variance
+        df_budget_data['Variance (%)'] = ((df_budget_data['Actual'] - df_budget_data['Budget']) / df_budget_data['Budget']) * 100
         
         st.write("### Budget Performance Summary")
-        st.dataframe(df_bud.style.format({
+        st.dataframe(df_budget_data.style.format({
             'Budget': '${:,.2f}',
             'Actual': '${:,.2f}',
             'Variance (%)': '{:.1f}%'
