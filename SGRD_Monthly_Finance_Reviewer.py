@@ -60,30 +60,49 @@ if uploaded_file:
         except Exception:
             st.info("Cash tab found, but could not extract the final balance value.")
 
-    # --- 4. MULTI-YEAR REVENUE TREND & BUDGET VARIANCE ---
+   # --- 4. MULTI-YEAR REVENUE TREND & BUDGET VARIANCE ---
     if 'REVENUE' in sheet_map and 'BUDGET' in sheet_map:
         st.subheader("📈 Multi-Year Revenue Trend & Budget Variance")
         
-        # Already loaded above, but re-reading for clarity/safety
+        # --- A. Revenue Trend (3-Year View) ---
         df_rev = pd.read_excel(xls, sheet_name=sheet_map['REVENUE'])
+        df_rev.columns = [str(c).strip() for c in df_rev.columns]
+        
+        # Select target years (ensuring they exist in the columns)
+        target_years = ['2024', '2025', '2026']
+        available_years = [y for y in target_years if y in df_rev.columns]
+        
+        if available_years:
+            # Set index to the category column, then filter out rows where all years are 0 or NaN
+            df_trend = df_rev.set_index(df_rev.columns[0])[available_years]
+            df_trend = df_trend[(df_trend != 0).any(axis=1)] # Keep only rows with data
+            
+            st.write("### Revenue Trend: 2024-2026")
+            st.line_chart(df_trend)
+
+        # --- B. Budget vs. Actual (Current vs Prior Comparison) ---
+        # Assuming df_bud structure: [Category, Budget_2026, Actual_2026, Actual_2025, Actual_2024]
         df_bud = pd.read_excel(xls, sheet_name=sheet_map['BUDGET'])
         
-        # Y-o-Y Trend
-        df_rev.columns = [str(c).strip() for c in df_rev.columns]
-        years = ['2025', '2026']
-        if all(y in df_rev.columns for y in years):
-            df_trend = df_rev.set_index(df_rev.columns[0])[years]
-            st.line_chart(df_trend)
+        # Clean numeric data: force errors to NaN and fill with 0
+        df_display = df_bud.iloc[:, :5].copy() # Grab first 5 columns
+        df_display.columns = ['Category', 'Budget 2026', 'Actual 2026', 'Actual 2025', 'Actual 2024']
         
-        # --- Updated Variance Analysis ---
-        # Instead of renaming all columns, we explicitly select the ones we need by index
-        # Assuming: Col 0 = Category, Col 1 = Budget, Col 2 = Actual
-        df_budget_data = df_bud.iloc[:, [0, 1, 2]].copy()
-        df_budget_data.columns = ['Category', 'Budget', 'Actual']
+        # Convert to numeric for calculation
+        for col in df_display.columns[1:]:
+            df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0)
+            
+        # Add Variance for 2026
+        df_display['Variance (%)'] = ((df_display['Actual 2026'] - df_display['Budget 2026']) / df_display['Budget 2026'].replace(0, 1)) * 100
         
-        # Calculate variance
-        df_budget_data['Variance (%)'] = ((df_budget_data['Actual'] - df_budget_data['Budget']) / df_budget_data['Budget']) * 100
-        
+        st.write("### Budget vs. Prior Years Performance")
+        st.dataframe(df_display.style.format({
+            'Budget 2026': '${:,.2f}',
+            'Actual 2026': '${:,.2f}',
+            'Actual 2025': '${:,.2f}',
+            'Actual 2024': '${:,.2f}',
+            'Variance (%)': '{:.1f}%'
+        }))
        # --- Clean and Format ---
         # Ensure the columns are treated as numbers, turning errors (like empty strings) into NaN
         df_budget_data['Budget'] = pd.to_numeric(df_budget_data['Budget'], errors='coerce')
