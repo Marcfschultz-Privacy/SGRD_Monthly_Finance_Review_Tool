@@ -84,13 +84,20 @@ if uploaded_file:
         # Calculate variance
         df_budget_data['Variance (%)'] = ((df_budget_data['Actual'] - df_budget_data['Budget']) / df_budget_data['Budget']) * 100
         
+       # --- Clean and Format ---
+        # Ensure the columns are treated as numbers, turning errors (like empty strings) into NaN
+        df_budget_data['Budget'] = pd.to_numeric(df_budget_data['Budget'], errors='coerce')
+        df_budget_data['Actual'] = pd.to_numeric(df_budget_data['Actual'], errors='coerce')
+        df_budget_data['Variance (%)'] = pd.to_numeric(df_budget_data['Variance (%)'], errors='coerce')
+
         st.write("### Budget Performance Summary")
-        st.dataframe(df_budget_data.style.format({
+        
+        # We use .fillna(0) to ensure the styler doesn't choke on missing data
+        st.dataframe(df_budget_data.fillna(0).style.format({
             'Budget': '${:,.2f}',
             'Actual': '${:,.2f}',
             'Variance (%)': '{:.1f}%'
         }))
-
     # Validate missing sheets
     missing = [tab for tab in ['REVENUE', 'BUDGET', 'CASH'] if tab not in sheet_map]
     if missing:
