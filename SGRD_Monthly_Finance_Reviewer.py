@@ -69,3 +69,32 @@ if uploaded_file:
 
 else:
     st.info("Awaiting Treasurer's file...")
+# --- ADD THIS TO YOUR SCRIPT ---
+
+if 'REVENUE' in sheet_map and 'BUDGET' in sheet_map:
+    st.subheader("📈 Multi-Year Revenue Trend & Budget Variance")
+    
+    df_rev = pd.read_excel(xls, sheet_name=sheet_map['REVENUE'])
+    df_bud = pd.read_excel(xls, sheet_name=sheet_map['BUDGET'])
+    
+    # 1. Year-over-Year Trend Analysis
+    # Ensure column names are stripped of whitespace
+    df_rev.columns = [str(c).strip() for c in df_rev.columns]
+    
+    # Filter for the relevant years and transpose for plotting
+    years = ['2025', '2026']
+    if all(y in df_rev.columns for y in years):
+        df_trend = df_rev.set_index(df_rev.columns[0])[years]
+        st.line_chart(df_trend)
+    
+    # 2. Budget vs. Actual Variance (Current Year)
+    # Assuming df_bud has columns: ['Category', 'Budget', 'Actual']
+    df_bud.columns = ['Category', 'Budget', 'Actual']
+    df_bud['Variance (%)'] = ((df_bud['Actual'] - df_bud['Budget']) / df_bud['Budget']) * 100
+    
+    st.write("### Budget Performance Summary")
+    st.dataframe(df_bud.style.format({
+        'Budget': '${:,.2f}',
+        'Actual': '${:,.2f}',
+        'Variance (%)': '{:.1f}%'
+    }))
